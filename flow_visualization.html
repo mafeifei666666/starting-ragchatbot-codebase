@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG System Flow Visualization</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { color: #333; margin-bottom: 10px; }
+        #chart {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        .node rect {
+            stroke: #333;
+            stroke-width: 1.5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .node:hover rect {
+            stroke-width: 2.5px;
+            filter: drop-shadow(0 0 5px rgba(0,0,0,0.2));
+        }
+        .node text {
+            font-size: 14px;
+            font-weight: 600;
+            pointer-events: none;
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+        .link {
+            fill: none;
+            stroke: #999;
+            stroke-opacity: 0.6;
+            stroke-width: 2px;
+        }
+        .link-label {
+            font-size: 11px;
+            fill: #555;
+            background-color: white;
+            text-anchor: middle;
+        }
+        .arrow-head {
+            fill: #999;
+        }
+        .tooltip {
+            position: absolute;
+            text-align: center;
+            padding: 8px;
+            font: 12px sans-serif;
+            background: #333;
+            color: white;
+            border-radius: 4px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+    </style>
+</head>
+<body>
+    <h1>RAG Chatbot Data Flow</h1>
+    <p>Hover over nodes to see details. Drag nodes to rearrange.</p>
+    <div id="chart"></div>
+    <div id="tooltip" class="tooltip"></div>
+
+    <script>
+        // Data defining the flow
+        const data = {
+            nodes: [
+                { id: "User", group: 1, label: "User", color: "#e3f2fd", desc: "Initiates query" },
+                { id: "Frontend", group: 2, label: "Frontend UI", color: "#bbdefb", desc: "script.js - Handles input/display" },
+                { id: "API", group: 3, label: "Backend API", color: "#90caf9", desc: "app.py - FastAPI Endpoints" },
+                { id: "RAG", group: 3, label: "RAG System", color: "#64b5f6", desc: "rag_system.py - Orchestrator" },
+                { id: "AI", group: 3, label: "AI Generator", color: "#42a5f5", desc: "ai_generator.py - Manages LLM interaction" },
+                { id: "Tools", group: 4, label: "Search Tools", color: "#fff9c4", desc: "search_tools.py - Executes searches" },
+                { id: "DB", group: 5, label: "ChromaDB", color: "#fff59d", desc: "Vector Database - Stores embeddings" },
+                { id: "Claude", group: 5, label: "Anthropic API", color: "#ffcc80", desc: "External LLM Service" }
+            ],
+            links: [
+                { source: "User", target: "Frontend", label: "1. Inputs Query" },
+                { source: "Frontend", target: "API", label: "2. POST /api/query" },
+                { source: "API", target: "RAG", label: "3. Call Query Method" },
+                { source: "RAG", target: "AI", label: "4. Generate Response" },
+                { source: "AI", target: "Claude", label: "5. Send Prompt + Tools" },
+                { source: "Claude", target: "AI", label: "6. Request Tool Use" },
+                { source: "AI", target: "Tools", label: "7. Execute Search" },
+                { source: "Tools", target: "DB", label: "8. Query Vectors" },
+                { source: "DB", target: "Tools", label: "9. Return Chunks" },
+                { source: "Tools", target: "AI", label: "10. Return Content" },
+                { source: "AI", target: "Claude", label: "11. Send Content" },
+                { source: "Claude", target: "AI", label: "12. Final Answer" },
+                { source: "AI", target: "RAG", label: "13. Return Answer" },
+                { source: "RAG", target: "API", label: "14. Answer + Sources" },
+                { source: "API", target: "Frontend", label: "15. JSON Response" },
+                { source: "Frontend", target: "User", label: "16. Display" }
+            ]
+        };
+
+        // Dimensions
+        const width = 1000;
+        const height = 600;
+        const nodeWidth = 120;
+        const nodeHeight = 50;
+
+        // SVG Setup
+        const svg = d3.select("#chart")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("viewBox", [0, 0, width, height]);
+
+        // Arrow marker
+        svg.append("defs").selectAll("marker")
+            .data(["end"])
+            .enter().append("marker")
+            .attr("id", "arrow")
+            .attr("viewBox", "0 -5 10 10")
+            .attr("refX", nodeWidth/2 + 10) // Offset to not overlap node
+            .attr("refY", 0)
+            .attr("markerWidth", 6)
+            .attr("markerHeight", 6)
+            .attr("orient", "auto")
+            .append("path")
+            .attr("d", "M0,-5L10,0L0,5")
+            .attr("class", "arrow-head");
+
+        // Simulation
+        const simulation = d3.forceSimulation(data.nodes)
+            .force("link", d3.forceLink(data.links).id(d => d.id).distance(150))
+            .force("charge", d3.forceManyBody().strength(-500))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("collide", d3.forceCollide().radius(80));
+
+        // Draw Links
+        const link = svg.append("g")
+            .selectAll(".link")
+            .data(data.links)
+            .enter().append("path")
+            .attr("class", "link")
+            .attr("marker-end", "url(#arrow)");
+
+        // Draw Link Labels (simple approach: text on path center)
+        // Note: For a cleaner look with many back-and-forth links, we might need curved paths.
+        // We'll use a simple straight line for now, but update position in tick.
+        
+        // Draw Nodes
+        const node = svg.append("g")
+            .selectAll(".node")
+            .data(data.nodes)
+            .enter().append("g")
+            .attr("class", "node")
+            .call(d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended));
+
+        node.append("rect")
+            .attr("width", nodeWidth)
+            .attr("height", nodeHeight)
+            .attr("x", -nodeWidth / 2)
+            .attr("y", -nodeHeight / 2)
+            .attr("rx", 5)
+            .attr("ry", 5)
+            .style("fill", d => d.color);
+
+        node.append("text")
+            .text(d => d.label)
+            .style("fill", "#333");
+
+        // Tooltip interaction
+        const tooltip = d3.select("#tooltip");
+        node.on("mouseover", function(event, d) {
+            tooltip.transition().duration(200).style("opacity", .9);
+            tooltip.html(`<strong>${d.label}</strong><br/>${d.desc}`)
+                .style("left", (event.pageX) + "px")
+                .style("top", (event.pageY - 28) + "px");
+        })
+        .on("mouseout", function(d) {
+            tooltip.transition().duration(500).style("opacity", 0);
+        });
+
+        // Simulation Tick
+        simulation.on("tick", () => {
+            // Update link paths
+            link.attr("d", d => {
+                // Calculate curve for bidirectional links or just aesthetics
+                const dx = d.target.x - d.source.x;
+                const dy = d.target.y - d.source.y;
+                const dr = Math.sqrt(dx * dx + dy * dy) * 2; // Large radius for slight curve
+                
+                // Use straight lines for simplicity in this specific graph type, 
+                // or curves if we want to separate A->B and B->A
+                return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+            });
+
+            // Update node positions
+            node.attr("transform", d => `translate(${d.x},${d.y})`);
+        });
+
+        // Drag functions
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+        
+        // Pre-set some positions to make it look like a flow chart initially
+        // This helps the force simulation settle into a nice layered structure
+        const layerMap = {
+            "User": {x: 100, y: 300},
+            "Frontend": {x: 250, y: 300},
+            "API": {x: 400, y: 300},
+            "RAG": {x: 550, y: 300},
+            "AI": {x: 700, y: 300},
+            "Tools": {x: 700, y: 450},
+            "DB": {x: 550, y: 450},
+            "Claude": {x: 850, y: 300}
+        };
+        
+        data.nodes.forEach(node => {
+            if(layerMap[node.id]) {
+                node.x = layerMap[node.id].x;
+                node.y = layerMap[node.id].y;
+            }
+        });
+
+    </script>
+</body>
+</html>
