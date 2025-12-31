@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>search_tools.py 架构图</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #f1f5f9;
+            padding: 2rem;
+            margin: 0;
+        }
+        h1, h2 {
+            color: #60a5fa;
+            margin-top: 2rem;
+        }
+        .mermaid {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            margin: 2rem 0;
+        }
+        .description {
+            background: #1e293b;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            border-left: 4px solid #60a5fa;
+        }
+        .code-section {
+            background: #1e293b;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+        .highlight {
+            color: #fbbf24;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>📚 search_tools.py 架构解析</h1>
+
+    <div class="description">
+        <strong>文件作用：</strong>这个文件实现了OpenAI工具调用（Tool Calling）系统，允许AI决定何时搜索课程内容。
+    </div>
+
+    <h2>1️⃣ 类结构层次</h2>
+    <div class="mermaid">
+        classDiagram
+            class Tool {
+                &lt;&lt;abstract&gt;&gt;
+                +get_tool_definition() Dict
+                +execute(kwargs) str
+            }
+
+            class CourseSearchTool {
+                -VectorStore store
+                -list last_sources
+                +get_tool_definition() Dict
+                +execute(query, course_name, lesson_number) str
+                -format_results(results) str
+            }
+
+            class ToolManager {
+                -dict tools
+                +register_tool(tool)
+                +get_tool_definitions() list
+                +execute_tool(tool_name, kwargs) str
+                +get_last_sources() list
+                +reset_sources()
+            }
+
+            Tool <|-- CourseSearchTool : 继承
+            ToolManager o-- Tool : 管理
+    </div>
+
+    <h2>2️⃣ 工作流程</h2>
+    <div class="mermaid">
+        sequenceDiagram
+            participant AI as OpenAI GPT
+            participant TM as ToolManager
+            participant CST as CourseSearchTool
+            participant VS as VectorStore
+
+            Note over AI,TM: 1. 注册阶段
+            TM->>CST: register_tool(search_tool)
+            CST->>TM: 返回工具定义
+
+            Note over AI,TM: 2. AI调用阶段
+            AI->>TM: "我需要搜索MCP课程的Lesson 3内容"
+            TM->>CST: execute(query="...", course_name="MCP", lesson_number=3)
+            CST->>VS: search(query, course_name, lesson_number)
+            VS->>CST: SearchResults
+            CST->>CST: _format_results(results)
+            CST->>CST: 保存 last_sources
+            CST->>TM: 格式化的结果文本
+            TM->>AI: 搜索结果
+
+            Note over AI,TM: 3. 获取来源
+            TM->>CST: get_last_sources()
+            CST->>TM: [{text, url}, ...]
+    </div>
+
+    <h2>3️⃣ 工具定义结构（OpenAI格式）</h2>
+    <div class="mermaid">
+        graph TD
+            A[Tool Definition] --> B[type: 'function']
+            A --> C[function]
+            C --> D[name: 'search_course_content']
+            C --> E[description: 工具说明]
+            C --> F[parameters]
+            F --> G[query: string <span class='highlight'>必需</span>]
+            F --> H[course_name: string <span class='highlight'>可选</span>]
+            F --> I[lesson_number: integer <span class='highlight'>可选</span>]
+
+            style A fill:#60a5fa,color:#000
+            style C fill:#34d399,color:#000
+            style F fill:#fbbf24,color:#000
+    </div>
+
+    <h2>4️⃣ 数据流转</h2>
+    <div class="mermaid">
+        flowchart LR
+            A[用户查询] --> B[AI决定调用工具]
+            B --> C[search_course_content]
+            C --> D{有课程名过滤?}
+            D -->|是| E[语义匹配课程名]
+            D -->|否| F[搜索所有课程]
+            E --> G{有课程号过滤?}
+            F --> G
+            G -->|是| H[只返回该课程结果]
+            G -->|否| I[返回所有相关结果]
+            H --> J[格式化结果]
+            I --> J
+            J --> K[保存来源信息]
+            K --> L[返回给AI]
+            L --> M[AI生成最终回答]
+
+            style A fill:#60a5fa,color:#000
+            style C fill:#34d399,color:#000
+            style J fill:#fbbf24,color:#000
+            style M fill:#f87171,color:#000
+    </div>
+
+    <h2>5️⃣ 核心方法详解</h2>
+
+    <div class="description">
+        <h3>Tool (抽象基类)</h3>
+        <div class="code-section">
+            <span class="highlight">get_tool_definition()</span>: 返回工具的OpenAI格式定义<br>
+            <span class="highlight">execute(**kwargs)</span>: 执行工具逻辑
+        </div>
+    </div>
+
+    <div class="description">
+        <h3>CourseSearchTool</h3>
+        <div class="code-section">
+            <span class="highlight">__init__(vector_store)</span>: 初始化，接收VectorStore实例<br>
+            <span class="highlight">get_tool_definition()</span>: 返回search_course_content工具定义<br>
+            <span class="highlight">execute(query, course_name?, lesson_number?)</span>: <br>
+            &nbsp;&nbsp;- 调用vector_store.search()<br>
+            &nbsp;&nbsp;- 处理错误和空结果<br>
+            &nbsp;&nbsp;- 格式化结果<br>
+            <span class="highlight">_format_results(results)</span>: <br>
+            &nbsp;&nbsp;- 为每个结果添加[课程名 - Lesson X]头部<br>
+            &nbsp;&nbsp;- 提取课程链接和课程链接<br>
+            &nbsp;&nbsp;- 保存sources到last_sources<br>
+            &nbsp;&nbsp;- 返回格式化文本
+        </div>
+    </div>
+
+    <div class="description">
+        <h3>ToolManager</h3>
+        <div class="code-section">
+            <span class="highlight">register_tool(tool)</span>: 注册工具到tools字典<br>
+            <span class="highlight">get_tool_definitions()</span>: 返回所有工具定义列表（传给OpenAI API）<br>
+            <span class="highlight">execute_tool(tool_name, **kwargs)</span>: 根据名称执行指定工具<br>
+            <span class="highlight">get_last_sources()</span>: 获取最后一次搜索的来源列表<br>
+            <span class="highlight">reset_sources()</span>: 清空所有工具的来源
+        </div>
+    </div>
+
+    <h2>6️⃣ 搜索结果格式化示例</h2>
+    <div class="description">
+        <strong>输入：</strong>SearchResults with 2 documents<br><br>
+        <strong>格式化后输出：</strong>
+        <div class="code-section">
+            [MCP: Build Rich-Context AI Apps - Lesson 3]<br>
+            This lesson covers the concept of resources in MCP...<br>
+            <br>
+            [MCP: Build Rich-Context AI Apps - Lesson 5]<br>
+            Advanced patterns for using MCP in production...
+        </div>
+        <strong>同时保存的sources：</strong>
+        <div class="code-section">
+            [<br>
+            &nbsp;&nbsp;{text: "MCP: Build Rich-Context AI Apps - Lesson 3", url: "https://..."},<br>
+            &nbsp;&nbsp;{text: "MCP: Build Rich-Context AI Apps - Lesson 5", url: "https://..."}<br>
+            ]
+        </div>
+    </div>
+
+    <h2>7️⃣ 与其他模块的关系</h2>
+    <div class="mermaid">
+        graph TB
+            A[app.py] --> B[ToolManager]
+            A --> C[RAGSystem]
+            B --> D[CourseSearchTool]
+            D --> E[VectorStore]
+            C --> F[AIGenerator]
+            F --> G[OpenAI API]
+            G --> B
+            B --> G
+
+            style A fill:#60a5fa,color:#000
+            style B fill:#34d399,color:#000
+            style D fill:#fbbf24,color:#000
+            style G fill:#f87171,color:#fff
+    </div>
+
+    <div class="description">
+        <strong>工作流程：</strong>
+        <ol>
+            <li><code>app.py</code> 创建 <code>ToolManager</code> 和 <code>CourseSearchTool</code></li>
+            <li>将工具定义传递给 <code>OpenAI API</code></li>
+            <li>AI决定何时调用 <code>search_course_content</code></li>
+            <li><code>ToolManager</code> 执行 <code>CourseSearchTool</code></li>
+            <li>结果返回给AI生成最终答案</li>
+            <li>Sources返回给前端显示</li>
+        </ol>
+    </div>
+
+    <h2>8️⃣ OpenAI工具调用关键点</h2>
+    <div class="description">
+        <strong>与Anthropic的区别：</strong>
+        <ul>
+            <li>工具定义格式：<code>{"type": "function", "function": {...}}</code></li>
+            <li>工具名称嵌套：<code>tool_def["function"]["name"]</code></li>
+            <li>参数字段：使用 <code>parameters</code> 而不是 <code>input_schema</code></li>
+            <li>消息格式：工具结果用 <code>role: "tool"</code></li>
+        </ul>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#60a5fa',
+                primaryTextColor: '#000',
+                primaryBorderColor: '#1e293b',
+                lineColor: '#94a3b8',
+                secondaryColor: '#34d399',
+                tertiaryColor: '#fbbf24'
+            }
+        });
+    </script>
+</body>
+</html>

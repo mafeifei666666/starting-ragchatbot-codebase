@@ -40,10 +40,15 @@ class QueryRequest(BaseModel):
     query: str
     session_id: Optional[str] = None
 
+class Source(BaseModel):
+    """Source citation with optional link"""
+    text: str
+    url: Optional[str] = None
+
 class QueryResponse(BaseModel):
     """Response model for course queries"""
     answer: str
-    sources: List[str]
+    sources: List[Source]
     session_id: str
 
 class CourseStats(BaseModel):
@@ -82,6 +87,33 @@ async def get_course_stats():
             total_courses=analytics["total_courses"],
             course_titles=analytics["course_titles"]
         )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class ClearSessionResponse(BaseModel):
+    """Response model for session clearing"""
+    message: str
+    session_id: str
+
+@app.delete("/api/sessions/{session_id}", response_model=ClearSessionResponse)
+async def clear_session(session_id: str):
+    """Clear conversation history for a specific session"""
+    try:
+        if not session_id:
+            raise HTTPException(status_code=400, detail="No session ID provided")
+
+        if session_id not in rag_system.session_manager.sessions:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        # Clear the session using the existing method
+        rag_system.session_manager.clear_session(session_id)
+
+        return ClearSessionResponse(
+            message="Session cleared successfully",
+            session_id=session_id
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

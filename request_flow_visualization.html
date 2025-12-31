@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>请求流程完整追踪 - Frontend to Backend</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #f1f5f9;
+            padding: 2rem;
+            margin: 0;
+        }
+        h1, h2 {
+            color: #60a5fa;
+            margin-top: 2rem;
+        }
+        .mermaid {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            margin: 2rem 0;
+        }
+        .description {
+            background: #1e293b;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            border-left: 4px solid #60a5fa;
+        }
+        .code-section {
+            background: #1e293b;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+        .highlight {
+            color: #fbbf24;
+            font-weight: bold;
+        }
+        .step {
+            color: #34d399;
+            font-weight: bold;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            background: #1e293b;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid #334155;
+        }
+        th {
+            background: #334155;
+            color: #60a5fa;
+            font-weight: 600;
+        }
+        .layer {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .layer-frontend { background: #3b82f6; color: white; }
+        .layer-api { background: #8b5cf6; color: white; }
+        .layer-rag { background: #ec4899; color: white; }
+        .layer-ai { background: #f59e0b; color: white; }
+        .layer-tools { background: #10b981; color: white; }
+        .layer-db { background: #ef4444; color: white; }
+    </style>
+</head>
+<body>
+    <h1>🔍 完整请求流程追踪：Frontend → Backend</h1>
+
+    <div class="description">
+        <strong>概述：</strong>本文档详细追踪了从用户在前端输入查询，到后端处理并返回结果的完整流程。包括所有中间步骤、函数调用、数据传递和工具执行。
+    </div>
+
+    <h2>📊 系统架构层次</h2>
+    <div class="mermaid">
+        graph TB
+            subgraph Frontend["前端层 (Browser)"]
+                UI[用户界面<br/>index.html]
+                JS[脚本逻辑<br/>script.js]
+            end
+
+            subgraph API["API层 (FastAPI)"]
+                APP[应用入口<br/>app.py]
+                ENDPOINTS[API端点<br/>/api/query]
+            end
+
+            subgraph RAG["RAG系统层"]
+                RAGS[RAG系统<br/>rag_system.py]
+                SESSION[会话管理<br/>session_manager.py]
+            end
+
+            subgraph AI["AI生成层"]
+                GEN[AI生成器<br/>ai_generator.py]
+                OPENAI[OpenAI API]
+            end
+
+            subgraph Tools["工具层"]
+                TM[工具管理器<br/>ToolManager]
+                CST[课程搜索工具<br/>CourseSearchTool]
+                COT[课程大纲工具<br/>CourseOutlineTool]
+            end
+
+            subgraph Data["数据层"]
+                VS[向量存储<br/>VectorStore]
+                CHROMA[ChromaDB<br/>向量数据库]
+            end
+
+            UI --> JS
+            JS -->|HTTP POST| ENDPOINTS
+            ENDPOINTS --> APP
+            APP --> RAGS
+            RAGS --> SESSION
+            RAGS --> GEN
+            GEN --> OPENAI
+            OPENAI -->|tool_calls| TM
+            TM --> CST
+            TM --> COT
+            CST --> VS
+            COT --> VS
+            VS --> CHROMA
+
+            style Frontend fill:#3b82f6,color:#fff
+            style API fill:#8b5cf6,color:#fff
+            style RAG fill:#ec4899,color:#fff
+            style AI fill:#f59e0b,color:#fff
+            style Tools fill:#10b981,color:#fff
+            style Data fill:#ef4444,color:#fff
+    </div>
+
+    <h2>🔄 完整请求流程（序列图）</h2>
+    <div class="mermaid">
+        sequenceDiagram
+            participant User as 👤 用户
+            participant UI as 🖥️ 前端UI
+            participant Script as 📜 script.js
+            participant API as 🚀 FastAPI
+            participant RAG as 🧠 RAGSystem
+            participant Session as 📝 SessionManager
+            participant AI as 🤖 AIGenerator
+            participant OpenAI as ☁️ OpenAI API
+            participant ToolMgr as 🔧 ToolManager
+            participant Tool as 🛠️ SearchTool/OutlineTool
+            participant Vector as 💾 VectorStore
+            participant Chroma as 🗄️ ChromaDB
+
+            User->>UI: 1. 输入查询
+            UI->>Script: 2. 触发sendMessage()
+
+            Note over Script: 禁用输入框，显示加载动画
+
+            Script->>API: 3. POST /api/query<br/>{query, session_id}
+
+            Note over API: app.py: query_documents()
+
+            API->>RAG: 4. rag_system.query(query, session_id)
+
+            RAG->>Session: 5. get_conversation_history(session_id)
+            Session-->>RAG: 历史对话记录
+
+            RAG->>AI: 6. generate_response(query, history, tools, tool_manager)
+
+            Note over AI: 构建messages数组<br/>包含system prompt和user query
+
+            AI->>OpenAI: 7. chat.completions.create(messages, tools)
+
+            Note over OpenAI: AI分析查询<br/>决定是否使用工具
+
+            alt AI决定使用工具
+                OpenAI-->>AI: 8a. finish_reason="tool_calls"<br/>返回tool_call请求
+
+                AI->>ToolMgr: 9. execute_tool(tool_name, **args)
+
+                alt 搜索工具调用
+                    ToolMgr->>Tool: 10a. CourseSearchTool.execute(query, course_name, lesson_number)
+                    Tool->>Vector: 11a. search(query, course_name, lesson_number)
+                    Vector->>Chroma: 12a. course_catalog.query() + course_content.query()
+                    Chroma-->>Vector: 搜索结果
+                    Vector-->>Tool: SearchResults
+                    Tool-->>Tool: _format_results() + 保存sources
+                    Tool-->>ToolMgr: 格式化的搜索结果
+                else 大纲工具调用
+                    ToolMgr->>Tool: 10b. CourseOutlineTool.execute(course_name)
+                    Tool->>Vector: 11b. _resolve_course_name() + course_catalog.get()
+                    Vector->>Chroma: 12b. 获取课程元数据
+                    Chroma-->>Vector: 课程元数据
+                    Vector-->>Tool: 课程元数据
+                    Tool-->>Tool: 格式化大纲 + 保存sources
+                    Tool-->>ToolMgr: 格式化的课程大纲
+                end
+
+                ToolMgr-->>AI: 13. 工具执行结果
+
+                Note over AI: 将工具结果添加到messages<br/>role: "tool"
+
+                AI->>OpenAI: 14. chat.completions.create(messages with tool results)
+                OpenAI-->>AI: 15. 最终生成的回答
+            else AI直接回答
+                OpenAI-->>AI: 8b. finish_reason="stop"<br/>直接返回答案
+            end
+
+            AI-->>RAG: 16. 生成的回答
+
+            RAG->>ToolMgr: 17. get_last_sources()
+            ToolMgr-->>RAG: sources列表
+
+            RAG->>Session: 18. add_exchange(session_id, query, response)
+
+            RAG-->>API: 19. (response, sources)
+
+            API-->>Script: 20. JSON响应<br/>{answer, sources, session_id}
+
+            Note over Script: 移除加载动画
+
+            Script->>UI: 21. addMessage(answer, 'assistant', sources)
+
+            Note over UI: 使用marked.parse()渲染Markdown<br/>显示sources链接
+
+            UI->>User: 22. 显示回答和来源
+    </div>
+
+    <h2>📋 详细步骤分解</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>步骤</th>
+                <th>层级</th>
+                <th>文件:函数</th>
+                <th>操作</th>
+                <th>数据</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>1</td>
+                <td><span class="layer layer-frontend">Frontend</span></td>
+                <td>index.html</td>
+                <td>用户在输入框输入查询</td>
+                <td>query: string</td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td><span class="layer layer-frontend">Frontend</span></td>
+                <td>script.js:sendMessage()</td>
+                <td>获取查询，禁用输入框，显示加载动画</td>
+                <td>query, currentSessionId</td>
+            </tr>
+            <tr>
+                <td>3</td>
+                <td><span class="layer layer-frontend">Frontend</span></td>
+                <td>script.js:fetch()</td>
+                <td>POST请求到 /api/query</td>
+                <td>{query: string, session_id: string}</td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td><span class="layer layer-api">API</span></td>
+                <td>app.py:query_documents()</td>
+                <td>接收请求，创建session_id（如果需要）</td>
+                <td>QueryRequest</td>
+            </tr>
+            <tr>
+                <td>5</td>
+                <td><span class="layer layer-rag">RAG</span></td>
+                <td>rag_system.py:query()</td>
+                <td>构建prompt，获取会话历史</td>
+                <td>query, session_id</td>
+            </tr>
+            <tr>
+                <td>6</td>
+                <td><span class="layer layer-rag">RAG</span></td>
+                <td>session_manager.py:get_conversation_history()</td>
+                <td>返回历史对话记录（最多MAX_HISTORY条）</td>
+                <td>formatted history string</td>
+            </tr>
+            <tr>
+                <td>7</td>
+                <td><span class="layer layer-ai">AI</span></td>
+                <td>ai_generator.py:generate_response()</td>
+                <td>构建messages数组（system + user）</td>
+                <td>[{role, content}]</td>
+            </tr>
+            <tr>
+                <td>8</td>
+                <td><span class="layer layer-ai">AI</span></td>
+                <td>ai_generator.py</td>
+                <td>添加tools参数，tool_choice="auto"</td>
+                <td>tools: [tool_definitions]</td>
+            </tr>
+            <tr>
+                <td>9</td>
+                <td><span class="layer layer-ai">AI</span></td>
+                <td>OpenAI API</td>
+                <td>调用chat.completions.create()</td>
+                <td>model, messages, tools, temperature, max_completion_tokens</td>
+            </tr>
+            <tr>
+                <td>10</td>
+                <td><span class="layer layer-ai">AI</span></td>
+                <td>OpenAI API</td>
+                <td>AI分析查询，决定是否使用工具</td>
+                <td>finish_reason: "tool_calls" 或 "stop"</td>
+            </tr>
+            <tr>
+                <td>11a</td>
+                <td><span class="layer layer-ai">AI</span></td>
+                <td>ai_generator.py:_handle_tool_execution()</td>
+                <td>如果finish_reason=="tool_calls"，处理工具调用</td>
+                <td>tool_calls: [{id, type, function}]</td>
+            </tr>
+            <tr>
+                <td>12</td>
+                <td><span class="layer layer-tools">Tools</span></td>
+                <td>tool_manager.py:execute_tool()</td>
+                <td>根据tool_name路由到对应工具</td>
+                <td>tool_name, **kwargs</td>
+            </tr>
+            <tr>
+                <td>13a</td>
+                <td><span class="layer layer-tools">Tools</span></td>
+                <td>search_tools.py:CourseSearchTool.execute()</td>
+                <td>执行课程内容搜索</td>
+                <td>query, course_name?, lesson_number?</td>
+            </tr>
+            <tr>
+                <td>13b</td>
+                <td><span class="layer layer-tools">Tools</span></td>
+                <td>search_tools.py:CourseOutlineTool.execute()</td>
+                <td>执行课程大纲查询</td>
+                <td>course_name</td>
+            </tr>
+            <tr>
+                <td>14</td>
+                <td><span class="layer layer-db">Database</span></td>
+                <td>vector_store.py:search() 或 _resolve_course_name()</td>
+                <td>搜索向量数据库</td>
+                <td>query_texts, n_results, where</td>
+            </tr>
+            <tr>
+                <td>15</td>
+                <td><span class="layer layer-db">Database</span></td>
+                <td>ChromaDB</td>
+                <td>执行向量搜索或元数据查询</td>
+                <td>embeddings, filters</td>
+            </tr>
+            <tr>
+                <td>16</td>
+                <td><span class="layer layer-db">Database</span></td>
+                <td>ChromaDB → VectorStore</td>
+                <td>返回搜索结果</td>
+                <td>documents, metadatas, distances</td>
+            </tr>
+            <tr>
+                <td>17</td>
+                <td><span class="layer layer-tools">Tools</span></td>
+                <td>Tool._format_results()</td>
+                <td>格式化结果，保存sources到last_sources</td>
+                <td>formatted text, sources: [{text, url}]</td>
+            </tr>
+            <tr>
+                <td>18</td>
+                <td><span class="layer layer-tools">Tools</span></td>
+                <td>Tool → ToolManager</td>
+                <td>返回格式化的工具结果</td>
+                <td>formatted result string</td>
+            </tr>
+            <tr>
+                <td>19</td>
+                <td><span class="layer layer-ai">AI</span></td>
+                <td>ai_generator.py</td>
+                <td>将工具结果添加到messages，role="tool"</td>
+                <td>[...messages, {role: "tool", content, tool_call_id}]</td>
+            </tr>
+            <tr>
+                <td>20</td>
+                <td><span class="layer layer-ai">AI</span></td>
+                <td>OpenAI API</td>
+                <td>第二次调用，基于工具结果生成最终答案</td>
+                <td>final response</td>
+            </tr>
+            <tr>
+                <td>21</td>
+                <td><span class="layer layer-rag">RAG</span></td>
+                <td>tool_manager.py:get_last_sources()</td>
+                <td>从工具中提取sources</td>
+                <td>sources: [{text, url}]</td>
+            </tr>
+            <tr>
+                <td>22</td>
+                <td><span class="layer layer-rag">RAG</span></td>
+                <td>session_manager.py:add_exchange()</td>
+                <td>将本次对话添加到历史记录</td>
+                <td>{user: query, assistant: response}</td>
+            </tr>
+            <tr>
+                <td>23</td>
+                <td><span class="layer layer-api">API</span></td>
+                <td>app.py</td>
+                <td>构建响应对象</td>
+                <td>QueryResponse(answer, sources, session_id)</td>
+            </tr>
+            <tr>
+                <td>24</td>
+                <td><span class="layer layer-api">API</span></td>
+                <td>FastAPI</td>
+                <td>返回JSON响应</td>
+                <td>{answer: string, sources: array, session_id: string}</td>
+            </tr>
+            <tr>
+                <td>25</td>
+                <td><span class="layer layer-frontend">Frontend</span></td>
+                <td>script.js</td>
+                <td>接收响应，移除加载动画</td>
+                <td>data.answer, data.sources</td>
+            </tr>
+            <tr>
+                <td>26</td>
+                <td><span class="layer layer-frontend">Frontend</span></td>
+                <td>script.js:addMessage()</td>
+                <td>使用marked.parse()渲染Markdown，创建sources列表</td>
+                <td>HTML元素</td>
+            </tr>
+            <tr>
+                <td>27</td>
+                <td><span class="layer layer-frontend">Frontend</span></td>
+                <td>index.html</td>
+                <td>在聊天界面显示回答和来源</td>
+                <td>DOM更新</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>🔍 工具调用流程详解</h2>
+    <div class="mermaid">
+        flowchart TD
+            Start([AI收到查询]) --> Decision{查询类型分析}
+
+            Decision -->|课程大纲相关| OutlineTool[调用 get_course_outline]
+            Decision -->|课程内容相关| SearchTool[调用 search_course_content]
+            Decision -->|通用知识| DirectAnswer[直接回答，不使用工具]
+
+            OutlineTool --> ResolveOutline["解析课程名称<br/>vector_store._resolve_course_name"]
+            ResolveOutline --> GetMetadata["获取课程元数据<br/>course_catalog.get"]
+            GetMetadata --> FormatOutline["格式化大纲<br/>标题+讲师+课程列表"]
+            FormatOutline --> SaveSourcesOutline["保存sources<br/>last_sources = 对象数组"]
+            SaveSourcesOutline --> ReturnOutline["返回格式化大纲"]
+
+            SearchTool --> ResolveSearch{"有课程名筛选?"}
+            ResolveSearch -->|是| ResolveName["语义匹配课程名<br/>course_catalog.query"]
+            ResolveSearch -->|否| BuildFilter["构建过滤器"]
+            ResolveName --> BuildFilter
+            BuildFilter --> VectorSearch["向量搜索<br/>course_content.query"]
+            VectorSearch --> FormatResults["格式化结果<br/>添加课程和Lesson头部"]
+            FormatResults --> ExtractLinks["提取课程/课程链接"]
+            ExtractLinks --> SaveSourcesSearch["保存sources<br/>last_sources = 对象数组"]
+            SaveSourcesSearch --> ReturnResults["返回搜索结果"]
+
+            ReturnOutline --> AddToMessages[添加到messages<br/>role: tool]
+            ReturnResults --> AddToMessages
+            DirectAnswer --> FinalResponse[生成最终回答]
+
+            AddToMessages --> SecondCall[第二次OpenAI调用<br/>基于工具结果]
+            SecondCall --> FinalResponse
+
+            FinalResponse --> End([返回给用户])
+
+            style OutlineTool fill:#10b981,color:#fff
+            style SearchTool fill:#10b981,color:#fff
+            style DirectAnswer fill:#f59e0b,color:#fff
+            style FinalResponse fill:#60a5fa,color:#fff
+    </div>
+
+    <h2>💾 数据结构流转</h2>
+
+    <div class="description">
+        <h3>1. 前端发送的数据</h3>
+        <div class="code-section">
+{<br>
+&nbsp;&nbsp;"query": "What is the outline of the MCP course?",<br>
+&nbsp;&nbsp;"session_id": "abc123" // 可选，首次为null<br>
+}
+        </div>
+    </div>
+
+    <div class="description">
+        <h3>2. OpenAI工具定义</h3>
+        <div class="code-section">
+{<br>
+&nbsp;&nbsp;"type": "function",<br>
+&nbsp;&nbsp;"function": {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;"name": "search_course_content",<br>
+&nbsp;&nbsp;&nbsp;&nbsp;"description": "Search for specific content within course materials",<br>
+&nbsp;&nbsp;&nbsp;&nbsp;"parameters": {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"type": "object",<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"properties": {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"query": {"type": "string", "description": "..."},<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"course_name": {"type": "string", "description": "..."},<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"lesson_number": {"type": "integer", "description": "..."}<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;},<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"required": ["query"]<br>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;}<br>
+}
+        </div>
+    </div>
+
+    <div class="description">
+        <h3>3. OpenAI返回的tool_calls</h3>
+        <div class="code-section">
+{<br>
+&nbsp;&nbsp;"id": "call_xyz",<br>
+&nbsp;&nbsp;"type": "function",<br>
+&nbsp;&nbsp;"function": {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;"name": "get_course_outline",<br>
+&nbsp;&nbsp;&nbsp;&nbsp;"arguments": "{\"course_name\": \"MCP\"}"<br>
+&nbsp;&nbsp;}<br>
+}
+        </div>
+    </div>
+
+    <div class="description">
+        <h3>4. 工具返回的结果</h3>
+        <div class="code-section">
+Course: MCP: Build Rich-Context AI Apps with Anthropic<br>
+Instructor: Andrew Ng<br>
+Course Link: https://...<br>
+<br>
+Course Outline (11 lessons):<br>
+&nbsp;&nbsp;Lesson 0: Introduction<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Link: https://...<br>
+&nbsp;&nbsp;Lesson 1: Why MCP<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Link: https://...<br>
+...
+        </div>
+    </div>
+
+    <div class="description">
+        <h3>5. 工具保存的sources</h3>
+        <div class="code-section">
+[<br>
+&nbsp;&nbsp;{<br>
+&nbsp;&nbsp;&nbsp;&nbsp;"text": "MCP: Build Rich-Context AI Apps with Anthropic",<br>
+&nbsp;&nbsp;&nbsp;&nbsp;"url": "https://www.deeplearning.ai/short-courses/..."<br>
+&nbsp;&nbsp;}<br>
+]
+        </div>
+    </div>
+
+    <div class="description">
+        <h3>6. 最终返回给前端的数据</h3>
+        <div class="code-section">
+{<br>
+&nbsp;&nbsp;"answer": "**MCP Course Outline: _MCP: Build Rich-Context AI Apps...**",<br>
+&nbsp;&nbsp;"sources": [<br>
+&nbsp;&nbsp;&nbsp;&nbsp;{<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"text": "MCP: Build Rich-Context AI Apps with Anthropic",<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"url": "https://..."<br>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;],<br>
+&nbsp;&nbsp;"session_id": "abc123"<br>
+}
+        </div>
+    </div>
+
+    <h2>🎯 关键代码位置</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>功能</th>
+                <th>文件</th>
+                <th>函数/类</th>
+                <th>行号</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>发送查询请求</td>
+                <td>frontend/script.js</td>
+                <td>sendMessage()</td>
+                <td>49-103</td>
+            </tr>
+            <tr>
+                <td>API端点处理</td>
+                <td>backend/app.py</td>
+                <td>query_documents()</td>
+                <td>61-79</td>
+            </tr>
+            <tr>
+                <td>RAG查询入口</td>
+                <td>backend/rag_system.py</td>
+                <td>query()</td>
+                <td>102-140</td>
+            </tr>
+            <tr>
+                <td>AI响应生成</td>
+                <td>backend/ai_generator.py</td>
+                <td>generate_response()</td>
+                <td>43-92</td>
+            </tr>
+            <tr>
+                <td>工具调用处理</td>
+                <td>backend/ai_generator.py</td>
+                <td>_handle_tool_execution()</td>
+                <td>94-153</td>
+            </tr>
+            <tr>
+                <td>工具执行</td>
+                <td>backend/search_tools.py</td>
+                <td>ToolManager.execute_tool()</td>
+                <td>157-162</td>
+            </tr>
+            <tr>
+                <td>课程搜索</td>
+                <td>backend/search_tools.py</td>
+                <td>CourseSearchTool.execute()</td>
+                <td>55-89</td>
+            </tr>
+            <tr>
+                <td>课程大纲</td>
+                <td>backend/search_tools.py</td>
+                <td>CourseOutlineTool.execute()</td>
+                <td>161-232</td>
+            </tr>
+            <tr>
+                <td>向量搜索</td>
+                <td>backend/vector_store.py</td>
+                <td>VectorStore.search()</td>
+                <td>61-100</td>
+            </tr>
+            <tr>
+                <td>课程名解析</td>
+                <td>backend/vector_store.py</td>
+                <td>_resolve_course_name()</td>
+                <td>102-116</td>
+            </tr>
+            <tr>
+                <td>获取sources</td>
+                <td>backend/search_tools.py</td>
+                <td>ToolManager.get_last_sources()</td>
+                <td>164-170</td>
+            </tr>
+            <tr>
+                <td>会话历史</td>
+                <td>backend/session_manager.py</td>
+                <td>get_conversation_history()</td>
+                <td>-</td>
+            </tr>
+            <tr>
+                <td>前端渲染</td>
+                <td>frontend/script.js</td>
+                <td>addMessage()</td>
+                <td>120-186</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>⚡ 性能优化点</h2>
+
+    <div class="description">
+        <h3>1. 缓存和重用</h3>
+        <ul>
+            <li><strong>SYSTEM_PROMPT</strong>: 静态存储，避免每次重建 (ai_generator.py:8)</li>
+            <li><strong>base_params</strong>: 预构建API参数 (ai_generator.py:36-41)</li>
+            <li><strong>embedding_function</strong>: 共享嵌入模型实例 (vector_store.py:46-48)</li>
+        </ul>
+    </div>
+
+    <div class="description">
+        <h3>2. 批量处理</h3>
+        <ul>
+            <li><strong>并行工具调用</strong>: OpenAI可以在一次响应中返回多个tool_calls (ai_generator.py:128)</li>
+            <li><strong>批量向量搜索</strong>: ChromaDB支持批量查询 (vector_store.py:93-97)</li>
+        </ul>
+    </div>
+
+    <div class="description">
+        <h3>3. 减少往返</h3>
+        <ul>
+            <li><strong>单次API调用</strong>: System prompt限制"One tool call per query maximum"</li>
+            <li><strong>会话保持</strong>: 前端保持session_id，避免每次创建新会话</li>
+        </ul>
+    </div>
+
+    <h2>🔒 安全措施</h2>
+
+    <div class="description">
+        <h3>前端安全</h3>
+        <ul>
+            <li><strong>XSS防护</strong>: 使用escapeHtml()转义用户输入 (script.js:189-193)</li>
+            <li><strong>Markdown安全渲染</strong>: 使用marked.parse()安全渲染 (script.js:127)</li>
+            <li><strong>链接安全</strong>: target="_blank" + rel="noopener noreferrer" (script.js:166)</li>
+        </ul>
+    </div>
+
+    <div class="description">
+        <h3>后端安全</h3>
+        <ul>
+            <li><strong>CORS配置</strong>: 明确的允许源列表 (app.py:24-32)</li>
+            <li><strong>输入验证</strong>: Pydantic模型验证 (app.py:38-52)</li>
+            <li><strong>错误处理</strong>: try-except捕获异常 (app.py:78-79)</li>
+            <li><strong>API密钥保护</strong>: 从环境变量读取 (config.py)</li>
+        </ul>
+    </div>
+
+    <h2>🐛 错误处理流程</h2>
+    <div class="mermaid">
+        flowchart TD
+            Error(["发生错误"]) --> Location{"错误位置"}
+
+            Location -->|前端| FrontendError["script.js catch块"]
+            Location -->|API层| APIError["app.py HTTPException"]
+            Location -->|RAG层| RAGError["rag_system.py try-except"]
+            Location -->|工具层| ToolError["Tool.execute 返回错误消息"]
+            Location -->|数据库层| DBError["vector_store.py SearchResults.empty"]
+
+            FrontendError --> RemoveLoading["移除加载动画"]
+            RemoveLoading --> ShowError["显示错误消息"]
+
+            APIError --> HTTPResponse["返回HTTP 500"]
+            HTTPResponse --> FrontendError
+
+            RAGError --> LogError["打印错误日志"]
+            LogError --> ReturnError["返回错误消息"]
+
+            ToolError --> ReturnErrorMsg["返回 Error 消息"]
+
+            DBError --> EmptyResults["SearchResults.empty"]
+            EmptyResults --> ToolError
+
+            ShowError --> EnableInput["启用输入框"]
+            ReturnError --> APIError
+            ReturnErrorMsg --> AIResponse["AI基于错误消息生成回答"]
+            AIResponse --> FrontendError
+
+            style Error fill:#ef4444,color:#fff
+            style ShowError fill:#fbbf24,color:#000
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#60a5fa',
+                primaryTextColor: '#000',
+                primaryBorderColor: '#1e293b',
+                lineColor: '#94a3b8',
+                secondaryColor: '#34d399',
+                tertiaryColor: '#fbbf24'
+            },
+            flowchart: {
+                curve: 'basis'
+            }
+        });
+    </script>
+</body>
+</html>

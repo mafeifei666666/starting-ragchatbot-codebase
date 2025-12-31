@@ -111,6 +111,63 @@ header h1 {
     margin-bottom: 0;
 }
 
+/* New Chat Section */
+.new-chat-section {
+    margin-bottom: 1.5rem;
+}
+
+.new-chat-button {
+    width: 100%;
+    padding: 0.5rem 0;
+    background: none;
+    color: var(--text-secondary);
+    border: none;
+    border-radius: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: block;
+    text-align: left;
+    transition: color 0.2s ease;
+    box-shadow: none;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.new-chat-button:hover:not(:disabled) {
+    background: none;
+    color: var(--primary-color);
+    transform: none;
+    box-shadow: none;
+}
+
+.new-chat-button:active:not(:disabled) {
+    transform: none;
+}
+
+.new-chat-button:focus {
+    outline: none;
+    color: var(--primary-color);
+}
+
+.new-chat-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.new-chat-button svg {
+    flex-shrink: 0;
+    display: none;
+}
+
+.new-chat-button::before {
+    content: '▶';
+    display: inline-block;
+    margin-right: 0.5rem;
+    font-size: 0.75rem;
+}
+
 /* Main Chat Area */
 .chat-main {
     flex: 1;
@@ -242,6 +299,41 @@ header h1 {
 
 .sources-content {
     padding: 0 0.5rem 0.25rem 1.5rem;
+    color: var(--text-secondary);
+}
+
+/* Sources list styling */
+.sources-list {
+    margin: 0;
+    padding-left: 1.2rem;
+    list-style-type: none;
+}
+
+.sources-list li {
+    margin: 0.3rem 0;
+    position: relative;
+}
+
+.sources-list li::before {
+    content: "→";
+    position: absolute;
+    left: -1rem;
+    color: var(--primary-color);
+}
+
+/* Source link styling */
+.sources-list .source-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s ease;
+}
+
+.sources-list .source-link:hover {
+    border-bottom-color: var(--primary-color);
+}
+
+.sources-list .source-text {
     color: var(--text-secondary);
 }
 
@@ -665,7 +757,17 @@ details[open] .suggested-header::before {
     .sidebar::-webkit-scrollbar-thumb:hover {
         background: var(--text-secondary);
     }
-    
+
+    .new-chat-section {
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+    }
+
+    .new-chat-button {
+        padding: 0.75rem 1rem;
+        font-size: 0.825rem;
+    }
+
     .chat-main {
         order: 1;
     }

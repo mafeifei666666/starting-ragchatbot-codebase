@@ -5,7 +5,7 @@ const API_URL = '/api';
 let currentSessionId = null;
 
 // DOM elements
-let chatMessages, chatInput, sendButton, totalCourses, courseTitles;
+let chatMessages, chatInput, sendButton, totalCourses, courseTitles, newChatButton;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -15,7 +15,8 @@ document.addEventListener('DOMContentLoaded', () => {
     sendButton = document.getElementById('sendButton');
     totalCourses = document.getElementById('totalCourses');
     courseTitles = document.getElementById('courseTitles');
-    
+    newChatButton = document.getElementById('newChatButton');
+
     setupEventListeners();
     createNewSession();
     loadCourseStats();
@@ -38,6 +39,9 @@ function setupEventListeners() {
             sendMessage();
         });
     });
+
+    // New Chat button
+    newChatButton.addEventListener('click', handleNewChat);
 }
 
 
@@ -125,10 +129,51 @@ function addMessage(content, type, sources = null, isWelcome = false) {
     let html = `<div class="message-content">${displayContent}</div>`;
     
     if (sources && sources.length > 0) {
+        // Render each source as a link or text in list format
+        const sourceItems = sources.map(source => {
+            // Handle both object and string formats for backward compatibility
+            let text, url;
+
+            if (typeof source === 'object' && source !== null) {
+                // New format: {text: "...", url: "..."}
+                text = source.text || '';
+                url = source.url || null;
+            } else {
+                // Old format or fallback: just a string
+                text = String(source);
+                url = null;
+            }
+
+            // Simplify text: extract course name abbreviation and lesson number
+            let displayText = text;
+            const match = text.match(/^(.+?)\s*-\s*Lesson\s+(\d+)$/i);
+            if (match) {
+                const courseName = match[1];
+                const lessonNum = match[2];
+                // Shorten course name if too long (keep first 30 chars)
+                const shortName = courseName.length > 30
+                    ? courseName.substring(0, 30) + '...'
+                    : courseName;
+                displayText = `${shortName} • Lesson ${lessonNum}`;
+            }
+
+            // Escape HTML to prevent XSS
+            const escapedText = escapeHtml(displayText);
+
+            if (url) {
+                // Has link: render as <a> tag in list item
+                const escapedUrl = escapeHtml(url);
+                return `<li><a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" class="source-link">${escapedText}</a></li>`;
+            } else {
+                // No link: render as plain text in list item
+                return `<li><span class="source-text">${escapedText}</span></li>`;
+            }
+        }).join('');
+
         html += `
             <details class="sources-collapsible">
                 <summary class="sources-header">Sources</summary>
-                <div class="sources-content">${sources.join(', ')}</div>
+                <ul class="sources-list">${sourceItems}</ul>
             </details>
         `;
     }
@@ -153,6 +198,42 @@ async function createNewSession() {
     currentSessionId = null;
     chatMessages.innerHTML = '';
     addMessage('Welcome to the Course Materials Assistant! I can help you with questions about courses, lessons and specific content. What would you like to know?', 'assistant', null, true);
+}
+
+async function handleNewChat() {
+    // If no session exists yet, just clear UI
+    if (!currentSessionId) {
+        createNewSession();
+        return;
+    }
+
+    // Disable button during operation
+    newChatButton.disabled = true;
+
+    try {
+        // Call backend to clear session
+        const response = await fetch(`${API_URL}/sessions/${currentSessionId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        if (!response.ok) {
+            // Even if backend fails, still clear frontend
+            console.error('Failed to clear backend session:', await response.text());
+        }
+
+        // Clear frontend regardless of backend response
+        createNewSession();
+
+    } catch (error) {
+        console.error('Error clearing session:', error);
+        // Still clear frontend even if network fails
+        createNewSession();
+    } finally {
+        newChatButton.disabled = false;
+    }
 }
 
 // Load course statistics
