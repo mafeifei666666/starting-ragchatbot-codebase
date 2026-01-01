@@ -1,5 +1,7 @@
+from typing import Dict, List, Optional
+
 from openai import OpenAI
-from typing import List, Optional, Dict, Any
+
 
 class AIGenerator:
     """Handles interactions with OpenAI's API for generating responses"""
@@ -35,7 +37,7 @@ All responses must be:
 4. **Example-supported** - Include relevant examples when they aid understanding
 Provide only the direct answer to what was asked.
 """
-    
+
     def __init__(self, api_key: str, model: str):
         self.client = OpenAI(api_key=api_key)
         self.model = model
@@ -44,13 +46,16 @@ Provide only the direct answer to what was asked.
         self.base_params = {
             "model": self.model,
             "temperature": 0,
-            "max_completion_tokens": 800
+            "max_completion_tokens": 800,
         }
-    
-    def generate_response(self, query: str,
-                         conversation_history: Optional[str] = None,
-                         tools: Optional[List] = None,
-                         tool_manager=None) -> str:
+
+    def generate_response(
+        self,
+        query: str,
+        conversation_history: Optional[str] = None,
+        tools: Optional[List] = None,
+        tool_manager=None,
+    ) -> str:
         """
         Generate AI response with optional tool usage and conversation context.
 
@@ -74,14 +79,11 @@ Provide only the direct answer to what was asked.
         # Build messages array (OpenAI includes system message in messages)
         messages = [
             {"role": "system", "content": system_content},
-            {"role": "user", "content": query}
+            {"role": "user", "content": query},
         ]
 
         # Prepare API call parameters efficiently
-        api_params = {
-            **self.base_params,
-            "messages": messages
-        }
+        api_params = {**self.base_params, "messages": messages}
 
         # Add tools if available
         if tools:
@@ -97,8 +99,10 @@ Provide only the direct answer to what was asked.
 
         # Return direct response
         return response.choices[0].message.content
-    
-    def _handle_tool_execution(self, initial_response, messages: List[Dict], tool_manager):
+
+    def _handle_tool_execution(
+        self, initial_response, messages: List[Dict], tool_manager
+    ):
         """
         Handle execution of tool calls and get follow-up response.
 
@@ -114,46 +118,41 @@ Provide only the direct answer to what was asked.
         assistant_message = initial_response.choices[0].message
 
         # Add AI's tool use response to messages
-        messages.append({
-            "role": "assistant",
-            "content": assistant_message.content,
-            "tool_calls": [
-                {
-                    "id": tool_call.id,
-                    "type": "function",
-                    "function": {
-                        "name": tool_call.function.name,
-                        "arguments": tool_call.function.arguments
+        messages.append(
+            {
+                "role": "assistant",
+                "content": assistant_message.content,
+                "tool_calls": [
+                    {
+                        "id": tool_call.id,
+                        "type": "function",
+                        "function": {
+                            "name": tool_call.function.name,
+                            "arguments": tool_call.function.arguments,
+                        },
                     }
-                }
-                for tool_call in assistant_message.tool_calls
-            ]
-        })
+                    for tool_call in assistant_message.tool_calls
+                ],
+            }
+        )
 
         # Execute all tool calls and add results
         import json
+
         for tool_call in assistant_message.tool_calls:
             # Parse the arguments
             args = json.loads(tool_call.function.arguments)
 
             # Execute the tool
-            tool_result = tool_manager.execute_tool(
-                tool_call.function.name,
-                **args
-            )
+            tool_result = tool_manager.execute_tool(tool_call.function.name, **args)
 
             # Add tool result message
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tool_call.id,
-                "content": tool_result
-            })
+            messages.append(
+                {"role": "tool", "tool_call_id": tool_call.id, "content": tool_result}
+            )
 
         # Prepare final API call without tools
-        final_params = {
-            **self.base_params,
-            "messages": messages
-        }
+        final_params = {**self.base_params, "messages": messages}
 
         # Get final response
         final_response = self.client.chat.completions.create(**final_params)

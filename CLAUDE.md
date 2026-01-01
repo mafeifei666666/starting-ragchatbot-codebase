@@ -11,8 +11,8 @@ This is a Retrieval-Augmented Generation (RAG) system for course materials that 
 ### Development
 
 ```bash
-# Install dependencies
-uv sync
+# Install dependencies (including dev tools)
+uv sync --extra dev
 
 # Run server (development with auto-reload)
 cd backend && uv run uvicorn app:app --reload --port 8000
@@ -20,6 +20,27 @@ cd backend && uv run uvicorn app:app --reload --port 8000
 # Quick start script
 ./run.sh
 ```
+
+### Code Quality Tools
+
+The project uses Black, isort, flake8, and mypy for code quality:
+
+```bash
+# Format code automatically
+./format.sh
+
+# Run linting checks (without modifying code)
+./lint.sh
+
+# Run comprehensive quality checks
+./quality-check.sh
+```
+
+**Quality Tools Configuration:**
+- **Black** (v24+): Automatic code formatting with 88 char line length
+- **isort** (v5+): Import sorting compatible with Black
+- **flake8** (v7+): Linting for code quality and style
+- **mypy** (v1.8+): Optional static type checking
 
 ### Environment Setup
 
